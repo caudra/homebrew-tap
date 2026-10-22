@@ -11,6 +11,7 @@ import json
 import os
 import re
 import sys
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -28,20 +29,29 @@ TAG = re.compile(r"^v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)$")
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
-def get(url: str) -> bytes:
+def get(url: str, token: str | None = None) -> bytes:
     request = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "caudra-homebrew-tap"})
-    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
-    if token and url.startswith("https://api.github.com/"):
+    if token:
         request.add_header("Authorization", f"Bearer {token}")
     with urllib.request.urlopen(request, timeout=60) as response:
         return response.read()
 
 
 def newest_tag() -> str:
-    releases = json.loads(get(f"{API}/releases?per_page=20"))
-    for release in releases:
-        if not release["draft"] and TAG.match(release["tag_name"]):
-            return release["tag_name"]
+    # A workflow token is scoped to this repository and may not list the releases of caudra/caudra,
+    # so an empty or failed answer falls back to an anonymous request.
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    for attempt in ([token, None] if token else [None]):
+        try:
+            releases = json.loads(get(f"{API}/releases?per_page=20", attempt))
+        except urllib.error.HTTPError as error:
+            if attempt is None:
+                raise
+            print(f"authenticated release list failed with HTTP {error.code}, retrying anonymously", file=sys.stderr)
+            continue
+        for release in releases:
+            if not release["draft"] and TAG.match(release["tag_name"]):
+                return release["tag_name"]
     raise SystemExit("no published release found")
 
 
