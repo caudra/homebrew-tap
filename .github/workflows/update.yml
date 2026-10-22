@@ -59,11 +59,20 @@ jobs:
         with:
           ref: ${{ github.ref_name }}
 
-      - uses: Homebrew/actions/setup-homebrew@main
-
-      # setup-homebrew taps this checkout as caudra/tap.
+      # The runner images ship Homebrew. Updating it would also clean up and upgrade
+      # the image's own formulae, which only adds minutes and warnings to this test.
       - name: Install and test from this tap
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+          HOMEBREW_NO_INSTALL_CLEANUP: "1"
+          HOMEBREW_NO_ENV_HINTS: "1"
+          HOMEBREW_NO_ANALYTICS: "1"
         run: |
+          if ! command -v brew >/dev/null; then
+            eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          fi
+          brew --version
+          brew tap caudra/tap "$GITHUB_WORKSPACE"
           brew install caudra/tap/caudra
           brew test caudra/tap/caudra
           brew audit --strict caudra/tap/caudra
