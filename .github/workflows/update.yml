@@ -61,9 +61,9 @@ jobs:
 
       - uses: Homebrew/actions/setup-homebrew@main
 
+      # setup-homebrew taps this checkout as caudra/tap.
       - name: Install and test from this tap
         run: |
-          brew tap caudra/tap "$GITHUB_WORKSPACE"
           brew install caudra/tap/caudra
           brew test caudra/tap/caudra
           brew audit --strict caudra/tap/caudra
